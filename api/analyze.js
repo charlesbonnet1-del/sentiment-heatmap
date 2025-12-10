@@ -1,7 +1,4 @@
 export default async function handler(req, res) {
-  console.log('=== API Called ===');
-  console.log('Method:', req.method);
-  
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -16,22 +13,18 @@ export default async function handler(req, res) {
 
   try {
     const { text } = req.body;
-    console.log('Text received:', text ? text.substring(0, 50) : 'NONE');
 
     if (!text || text.trim().length === 0) {
       return res.status(400).json({ error: 'Text is required' });
     }
 
     const apiKey = process.env.ANTHROPIC_API_KEY;
-    console.log('API Key exists:', !!apiKey);
-    console.log('API Key prefix:', apiKey ? apiKey.substring(0, 15) : 'MISSING');
     
     if (!apiKey) {
-      console.error('❌ API key not found in environment!');
-      return res.status(500).json({ error: 'API key not configured. Go to Vercel Settings → Environment Variables' });
+      return res.status(500).json({ error: 'API key not configured' });
     }
 
-    console.log('📡 Calling Claude API...');
+    console.log('Calling Claude API...');
 
     const claudeResponse = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -45,52 +38,120 @@ export default async function handler(req, res) {
         max_tokens: 4000,
         messages: [{
           role: "user",
-          content: `You are an expert conversion copywriter. Analyze this copy: "${text}"
+          content: `You are a conversion copywriting expert. Analyze this marketing copy and return ONLY valid JSON with NO markdown formatting, NO code blocks, NO explanations - just pure JSON.
 
-Respond ONLY with valid JSON (no markdown):
+Copy to analyze: "${text.replace(/"/g, '\\"')}"
+
+Return this EXACT structure with valid JSON:
 {
-  "wordAnalysis": [{"word": "Try", "sentiment": -0.5, "issue": "weak_conviction", "suggestion": "Use 'Start' instead", "reasoning": "More decisive"}],
-  "overallMetrics": {"conversionScore": 65, "emotionalTone": "neutral", "urgencyLevel": "low", "clarityScore": 70, "confidenceLevel": "weak"},
-  "recommendations": [{"type": "high", "title": "Remove hedging", "impact": "+25%", "detail": "Replace weak words", "before": "Maybe you'll like it", "after": "You'll love it"}],
-  "optimizedVersions": [{"title": "Direct & Confident", "text": "Start your free 30-day trial. Experience real results.", "score": 85, "changes": ["Removed hedging", "Added benefit"]}],
-  "competitorInsights": {"commonPatterns": ["Strong CTAs"], "differentiationOpportunities": ["Add urgency"]}
-}`
+  "wordAnalysis": [
+    {"word": "word1", "sentiment": 0.5, "issue": null, "suggestion": null, "reasoning": "Brief reason"}
+  ],
+  "overallMetrics": {
+    "conversionScore": 70,
+    "emotionalTone": "neutral",
+    "urgencyLevel": "medium",
+    "clarityScore": 75,
+    "confidenceLevel": "moderate"
+  },
+  "recommendations": [
+    {
+      "type": "high",
+      "title": "Short title",
+      "impact": "+20%",
+      "detail": "Brief explanation without quotes",
+      "before": "original text",
+      "after": "improved text"
+    }
+  ],
+  "optimizedVersions": [
+    {
+      "title": "Version Name",
+      "text": "Rewritten copy here",
+      "score": 85,
+      "changes": ["change 1", "change 2"]
+    }
+  ],
+  "competitorInsights": {
+    "commonPatterns": ["pattern 1", "pattern 2"],
+    "differentiationOpportunities": ["opportunity 1", "opportunity 2"]
+  }
+}
+
+CRITICAL: Ensure all text values are properly escaped. No unescaped quotes, no newlines in strings. Keep explanations brief and simple.`
         }]
       })
     });
 
-    console.log('Claude response status:', claudeResponse.status);
-
     if (!claudeResponse.ok) {
       const errorText = await claudeResponse.text();
-      console.error('❌ Claude API error:', errorText);
+      console.error('Claude API error:', errorText);
       return res.status(500).json({ 
-        error: `Claude API error: ${claudeResponse.status}`,
-        details: errorText.substring(0, 200)
+        error: `API error: ${claudeResponse.status}`
       });
     }
 
     const data = await claudeResponse.json();
-    console.log('✅ Claude response received');
+    let content = data.content[0].text;
     
-    const content = data.content[0].text;
-    console.log('Content preview:', content.substring(0, 100));
+    console.log('Raw response length:', content.length);
+    console.log('First 200 chars:', content.substring(0, 200));
     
-    let jsonStr = content.trim();
-    jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+    // Nettoyage agressif
+    content = content.trim();
     
-    const parsed = JSON.parse(jsonStr);
-    console.log('✅ JSON parsed successfully');
+    // Enlever les code blocks markdown
+    content = content.replace(/```json\s*/g, '');
+    content = content.replace(/```\s*/g, '');
+    
+    // Enlever tout avant le premier {
+    const firstBrace = content.indexOf('{');
+    if (firstBrace > 0) {
+      content = content.substring(firstBrace);
+    }
+    
+    // Enlever tout après le dernier }
+    const lastBrace = content.lastIndexOf('}');
+    if (lastBrace > -1 && lastBrace < content.length - 1) {
+      content = content.substring(0, lastBrace + 1);
+    }
+    
+    console.log('Cleaned content length:', content.length);
+    console.log('Attempting to parse JSON...');
+    
+    let parsed;
+    try {
+      parsed = JSON.parse(content);
+    } catch (parseError) {
+      console.error('JSON parse error:', parseError.message);
+      console.error('Problematic JSON:', content);
+      
+      // Tentative de réparation basique
+      content = content
+        .replace(/[\n\r]/g, ' ')  // Supprimer les retours à la ligne
+        .replace(/\s+/g, ' ')      // Normaliser les espaces
+        .replace(/,(\s*[}\]])/g, '$1'); // Supprimer les virgules orphelines
+      
+      try {
+        parsed = JSON.parse(content);
+        console.log('JSON repaired and parsed successfully');
+      } catch (secondError) {
+        return res.status(500).json({ 
+          error: 'Invalid JSON from AI',
+          details: parseError.message,
+          preview: content.substring(0, 500)
+        });
+      }
+    }
 
+    console.log('Analysis completed successfully');
     return res.status(200).json(parsed);
 
   } catch (error) {
-    console.error('❌ Server Error:', error.message);
-    console.error('Stack:', error.stack);
+    console.error('Server error:', error);
     return res.status(500).json({ 
       error: 'Analysis failed',
-      message: error.message,
-      type: error.constructor.name
+      message: error.message
     });
   }
 }
