@@ -1,8 +1,6 @@
-// src/App.js - Frontend React mis à jour
 import React, { useState } from 'react';
 import { AlertCircle, TrendingUp, Zap, Target, Copy, Loader2, Send } from 'lucide-react';
 
-// ⚠️ IMPORTANT : Change cette URL après déploiement Vercel
 const API_URL = process.env.REACT_APP_API_URL || '/api/analyze';
 
 const SentimentHeatmapPro = () => {
@@ -19,7 +17,6 @@ const SentimentHeatmapPro = () => {
     setError(null);
     
     try {
-      // 🔥 APPEL AU BACKEND PROXY (pas directement à Claude)
       const response = await fetch(API_URL, {
         method: "POST",
         headers: {
@@ -30,17 +27,13 @@ const SentimentHeatmapPro = () => {
 
       if (!response.ok) {
         const errorData = await response.json();
-        
-        // Gérer le rate limiting
         if (response.status === 429) {
           throw new Error(`Rate limit atteint. Réessayez dans ${errorData.remainingTime || '1 heure'}.`);
         }
-        
         throw new Error(errorData.error || `Erreur ${response.status}`);
       }
 
       const parsed = await response.json();
-      
       setAnalysis(parsed);
       setActiveTab('heatmap');
       
@@ -81,7 +74,6 @@ const SentimentHeatmapPro = () => {
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#F9F7F1', fontFamily: '"Consolas", "Monaco", "Lucida Console", "Courier New", monospace' }}>
       <div className="max-w-2xl mx-auto px-4 py-8">
-        {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2" style={{ color: '#2D2D2D' }}>Sentiment Heatmap Live</h1>
           <p className="text-[15px] leading-relaxed" style={{ color: '#44403C' }}>AI-powered copy analysis for maximum conversion</p>
@@ -91,7 +83,6 @@ const SentimentHeatmapPro = () => {
           </div>
         </div>
 
-        {/* Input Section */}
         <div className="rounded-2xl p-6 mb-6 border-2" style={{ backgroundColor: '#E5E0D8', borderColor: '#D6D3D1' }}>
           <label className="block text-sm font-semibold mb-3" style={{ color: '#44403C' }}>
             Your Marketing Copy
@@ -115,10 +106,7 @@ const SentimentHeatmapPro = () => {
               onClick={analyzeText}
               disabled={isAnalyzing || !text.trim()}
               className="px-6 py-3 rounded-full font-semibold flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-[15px]"
-              style={{ 
-                backgroundColor: '#EA580C',
-                color: '#FFFFFF'
-              }}
+              style={{ backgroundColor: '#EA580C', color: '#FFFFFF' }}
               onMouseEnter={(e) => !isAnalyzing && text.trim() && (e.target.style.backgroundColor = '#DC2626')}
               onMouseLeave={(e) => e.target.style.backgroundColor = '#EA580C'}
             >
@@ -141,8 +129,6 @@ const SentimentHeatmapPro = () => {
               </div>
             )}
           </div>
-          
-          {/* Info Rate Limit */}
           <div className="mt-4 text-xs" style={{ color: '#A8A29E' }}>
             💡 Limite : 10 analyses par heure • Les analyses identiques sont en cache
           </div>
@@ -150,7 +136,6 @@ const SentimentHeatmapPro = () => {
 
         {analysis && (
           <>
-            {/* Score Dashboard */}
             <div className="grid grid-cols-2 gap-4 mb-6">
               <div className="rounded-2xl p-5 border-2" style={{ backgroundColor: '#E5E0D8', borderColor: '#D6D3D1' }}>
                 <div className="flex items-center justify-between mb-2">
@@ -199,7 +184,6 @@ const SentimentHeatmapPro = () => {
               </div>
             </div>
 
-            {/* Tabs */}
             <div className="rounded-2xl overflow-hidden border-2" style={{ backgroundColor: '#E5E0D8', borderColor: '#D6D3D1' }}>
               <div className="flex border-b-2" style={{ borderColor: '#D6D3D1' }}>
                 {['heatmap', 'recommendations', 'optimized', 'insights'].map((tab) => (
@@ -219,7 +203,6 @@ const SentimentHeatmapPro = () => {
               </div>
 
               <div className="p-6" style={{ backgroundColor: '#F9F7F1' }}>
-                {/* Heatmap Tab */}
                 {activeTab === 'heatmap' && (
                   <div>
                     <div className="mb-6">
@@ -236,19 +219,14 @@ const SentimentHeatmapPro = () => {
                             </span>
                             {(item.suggestion || item.reasoning) && (
                               <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 text-xs rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity w-64 pointer-events-none z-10" style={{ backgroundColor: '#1C1917', color: '#E7E5E4' }}>
-                                {item.suggestion && (
-                                  <div className="font-semibold mb-1">{item.suggestion}</div>
-                                )}
-                                {item.reasoning && (
-                                  <div style={{ color: '#A8A29E' }}>{item.reasoning}</div>
-                                )}
+                                {item.suggestion && <div className="font-semibold mb-1">{item.suggestion}</div>}
+                                {item.reasoning && <div style={{ color: '#A8A29E' }}>{item.reasoning}</div>}
                               </div>
                             )}
                           </div>
                         ))}
                       </div>
                     </div>
-
                     <div className="grid grid-cols-2 gap-4">
                       <div className="rounded-2xl p-4" style={{ backgroundColor: '#E5E0D8' }}>
                         <h4 className="font-semibold mb-3 text-sm" style={{ color: '#2D2D2D' }}>Legend</h4>
@@ -267,7 +245,6 @@ const SentimentHeatmapPro = () => {
                           </div>
                         </div>
                       </div>
-
                       <div className="rounded-2xl p-4" style={{ backgroundColor: '#FED7AA' }}>
                         <h4 className="font-semibold mb-3 text-sm" style={{ color: '#7C2D12' }}>AI Insights</h4>
                         <ul className="space-y-2 text-[15px]" style={{ color: '#9A3412' }}>
@@ -280,22 +257,13 @@ const SentimentHeatmapPro = () => {
                   </div>
                 )}
 
-                {/* Autres tabs (recommendations, optimized, insights) - Code identique à avant */}
                 {activeTab === 'recommendations' && (
                   <div className="space-y-4">
                     {analysis.recommendations.map((rec, idx) => (
-                      <div
-                        key={idx}
-                        className={`border-l-4 p-4 rounded-2xl rounded-bl-none ${
-                          rec.type === 'critical' ? 'border-red-500 bg-red-50' : rec.type === 'high' ? 'bg-orange-50' : 'bg-yellow-50'
-                        }`}
-                        style={{ borderLeftColor: rec.type === 'high' ? '#EA580C' : undefined }}
-                      >
+                      <div key={idx} className={`border-l-4 p-4 rounded-2xl rounded-bl-none ${rec.type === 'critical' ? 'border-red-500 bg-red-50' : rec.type === 'high' ? 'bg-orange-50' : 'bg-yellow-50'}`} style={{ borderLeftColor: rec.type === 'high' ? '#EA580C' : undefined }}>
                         <div className="flex items-start justify-between mb-2">
                           <h4 className="font-semibold text-[15px]" style={{ color: '#2D2D2D' }}>{rec.title}</h4>
-                          <span className="px-3 py-1 rounded-full text-sm font-bold" style={{ backgroundColor: '#EA580C', color: '#FFFFFF' }}>
-                            {rec.impact}
-                          </span>
+                          <span className="px-3 py-1 rounded-full text-sm font-bold" style={{ backgroundColor: '#EA580C', color: '#FFFFFF' }}>{rec.impact}</span>
                         </div>
                         <p className="text-[15px] mb-3 leading-relaxed" style={{ color: '#44403C' }}>{rec.detail}</p>
                         <div className="grid grid-cols-2 gap-4 p-4 rounded-2xl border-2" style={{ backgroundColor: '#F9F7F1', borderColor: '#D6D3D1' }}>
@@ -316,18 +284,13 @@ const SentimentHeatmapPro = () => {
                 {activeTab === 'optimized' && (
                   <div className="space-y-4">
                     {analysis.optimizedVersions.map((version, idx) => (
-                      <div key={idx} className="border-2 rounded-2xl p-5 transition-colors" style={{ borderColor: '#D6D3D1' }}
-                        onMouseEnter={(e) => e.currentTarget.style.borderColor = '#EA580C'}
-                        onMouseLeave={(e) => e.currentTarget.style.borderColor = '#D6D3D1'}
-                      >
+                      <div key={idx} className="border-2 rounded-2xl p-5 transition-colors" style={{ borderColor: '#D6D3D1' }} onMouseEnter={(e) => e.currentTarget.style.borderColor = '#EA580C'} onMouseLeave={(e) => e.currentTarget.style.borderColor = '#D6D3D1'}>
                         <div className="flex items-start justify-between mb-3">
                           <div>
                             <h4 className="font-bold text-lg" style={{ color: '#2D2D2D' }}>{version.title}</h4>
                             <div className="flex gap-2 mt-2 flex-wrap">
                               {version.changes.map((change, i) => (
-                                <span key={i} className="text-xs px-3 py-1 rounded-full border" style={{ backgroundColor: '#FED7AA', color: '#7C2D12', borderColor: '#FDBA74' }}>
-                                  {change}
-                                </span>
+                                <span key={i} className="text-xs px-3 py-1 rounded-full border" style={{ backgroundColor: '#FED7AA', color: '#7C2D12', borderColor: '#FDBA74' }}>{change}</span>
                               ))}
                             </div>
                           </div>
@@ -339,11 +302,7 @@ const SentimentHeatmapPro = () => {
                         <div className="rounded-2xl p-4 mb-3" style={{ backgroundColor: '#E5E0D8' }}>
                           <p className="font-medium text-[15px] leading-relaxed" style={{ color: '#2D2D2D' }}>{version.text}</p>
                         </div>
-                        <button
-                          onClick={() => copyToClipboard(version.text)}
-                          className="flex items-center gap-2 text-[15px] font-semibold"
-                          style={{ color: '#EA580C' }}
-                        >
+                        <button onClick={() => copyToClipboard(version.text)} className="flex items-center gap-2 text-[15px] font-semibold" style={{ color: '#EA580C' }}>
                           <Copy className="w-4 h-4" />
                           Copy to clipboard
                         </button>
