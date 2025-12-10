@@ -1,0 +1,390 @@
+// src/App.js - Frontend React mis à jour
+import React, { useState } from 'react';
+import { AlertCircle, TrendingUp, Zap, Target, Copy, Loader2, Send } from 'lucide-react';
+
+// ⚠️ IMPORTANT : Change cette URL après déploiement Vercel
+const API_URL = process.env.REACT_APP_API_URL || '/api/analyze';
+
+const SentimentHeatmapPro = () => {
+  const [text, setText] = useState("Try our product free for 30 days. Maybe you'll like it. We think it's okay.");
+  const [analysis, setAnalysis] = useState(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [activeTab, setActiveTab] = useState('heatmap');
+  const [error, setError] = useState(null);
+
+  const analyzeText = async () => {
+    if (!text.trim()) return;
+    
+    setIsAnalyzing(true);
+    setError(null);
+    
+    try {
+      // 🔥 APPEL AU BACKEND PROXY (pas directement à Claude)
+      const response = await fetch(API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ text })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        
+        // Gérer le rate limiting
+        if (response.status === 429) {
+          throw new Error(`Rate limit atteint. Réessayez dans ${errorData.remainingTime || '1 heure'}.`);
+        }
+        
+        throw new Error(errorData.error || `Erreur ${response.status}`);
+      }
+
+      const parsed = await response.json();
+      
+      setAnalysis(parsed);
+      setActiveTab('heatmap');
+      
+    } catch (err) {
+      console.error('Analysis error:', err);
+      setError(err.message || 'Échec de l\'analyse. Réessayez.');
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  const getSentimentColor = (sentiment) => {
+    if (sentiment > 0.6) return '#10b981';
+    if (sentiment > 0.2) return '#EA580C';
+    if (sentiment > -0.2) return '#A8A29E';
+    if (sentiment > -0.5) return '#f59e0b';
+    return '#ef4444';
+  };
+
+  const getSentimentBg = (sentiment) => {
+    if (sentiment > 0.6) return 'bg-green-50 border-green-300';
+    if (sentiment > 0.2) return 'bg-orange-50 border-orange-300';
+    if (sentiment > -0.2) return 'border-[#A8A29E]';
+    if (sentiment > -0.5) return 'bg-yellow-50 border-yellow-300';
+    return 'bg-red-50 border-red-300';
+  };
+
+  const getScoreColor = (score) => {
+    if (score >= 80) return 'text-green-600';
+    if (score >= 60) return 'text-[#EA580C]';
+    return 'text-red-600';
+  };
+
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text);
+  };
+
+  return (
+    <div className="min-h-screen" style={{ backgroundColor: '#F9F7F1', fontFamily: '"Consolas", "Monaco", "Lucida Console", "Courier New", monospace' }}>
+      <div className="max-w-2xl mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold mb-2" style={{ color: '#2D2D2D' }}>Sentiment Heatmap Live</h1>
+          <p className="text-[15px] leading-relaxed" style={{ color: '#44403C' }}>AI-powered copy analysis for maximum conversion</p>
+          <div className="mt-3 flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: '#EA580C' }}></div>
+            <span className="text-sm" style={{ color: '#A8A29E' }}>Powered by Claude Sonnet 4</span>
+          </div>
+        </div>
+
+        {/* Input Section */}
+        <div className="rounded-2xl p-6 mb-6 border-2" style={{ backgroundColor: '#E5E0D8', borderColor: '#D6D3D1' }}>
+          <label className="block text-sm font-semibold mb-3" style={{ color: '#44403C' }}>
+            Your Marketing Copy
+          </label>
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            className="w-full h-32 p-4 rounded-2xl border-2 focus:outline-none text-[15px] leading-relaxed resize-none"
+            style={{ 
+              backgroundColor: '#F9F7F1',
+              borderColor: '#D6D3D1',
+              color: '#2D2D2D',
+              caretColor: '#EA580C'
+            }}
+            onFocus={(e) => e.target.style.borderColor = '#EA580C'}
+            onBlur={(e) => e.target.style.borderColor = '#D6D3D1'}
+            placeholder="Paste your headline, CTA, email subject, or landing page copy..."
+          />
+          <div className="flex items-center gap-4 mt-4">
+            <button
+              onClick={analyzeText}
+              disabled={isAnalyzing || !text.trim()}
+              className="px-6 py-3 rounded-full font-semibold flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-[15px]"
+              style={{ 
+                backgroundColor: '#EA580C',
+                color: '#FFFFFF'
+              }}
+              onMouseEnter={(e) => !isAnalyzing && text.trim() && (e.target.style.backgroundColor = '#DC2626')}
+              onMouseLeave={(e) => e.target.style.backgroundColor = '#EA580C'}
+            >
+              {isAnalyzing ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Analyzing...
+                </>
+              ) : (
+                <>
+                  <Send className="w-5 h-5" />
+                  Analyze Copy
+                </>
+              )}
+            </button>
+            {error && (
+              <div className="text-red-600 text-sm flex items-center gap-2">
+                <AlertCircle className="w-4 h-4" />
+                {error}
+              </div>
+            )}
+          </div>
+          
+          {/* Info Rate Limit */}
+          <div className="mt-4 text-xs" style={{ color: '#A8A29E' }}>
+            💡 Limite : 10 analyses par heure • Les analyses identiques sont en cache
+          </div>
+        </div>
+
+        {analysis && (
+          <>
+            {/* Score Dashboard */}
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="rounded-2xl p-5 border-2" style={{ backgroundColor: '#E5E0D8', borderColor: '#D6D3D1' }}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium" style={{ color: '#44403C' }}>Conversion Score</span>
+                  <Target className="w-5 h-5" style={{ color: '#EA580C' }} />
+                </div>
+                <div className={`text-4xl font-bold ${getScoreColor(analysis.overallMetrics.conversionScore)}`}>
+                  {Math.round(analysis.overallMetrics.conversionScore)}
+                </div>
+                <div className="text-xs mt-1" style={{ color: '#A8A29E' }}>Industry avg: 65</div>
+              </div>
+
+              <div className="rounded-2xl p-5 border-2" style={{ backgroundColor: '#E5E0D8', borderColor: '#D6D3D1' }}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium" style={{ color: '#44403C' }}>Issues Found</span>
+                  <AlertCircle className="w-5 h-5 text-red-600" />
+                </div>
+                <div className="text-4xl font-bold" style={{ color: '#2D2D2D' }}>
+                  {analysis.wordAnalysis.filter(w => w.issue).length}
+                </div>
+                <div className="text-xs mt-1" style={{ color: '#A8A29E' }}>Need optimization</div>
+              </div>
+
+              <div className="rounded-2xl p-5 border-2" style={{ backgroundColor: '#E5E0D8', borderColor: '#D6D3D1' }}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium" style={{ color: '#44403C' }}>Clarity Score</span>
+                  <TrendingUp className="w-5 h-5" style={{ color: '#EA580C' }} />
+                </div>
+                <div className={`text-4xl font-bold ${getScoreColor(analysis.overallMetrics.clarityScore)}`}>
+                  {Math.round(analysis.overallMetrics.clarityScore)}
+                </div>
+                <div className="text-xs mt-1" style={{ color: '#A8A29E' }}>Message clarity</div>
+              </div>
+
+              <div className="rounded-2xl p-5 border-2" style={{ backgroundColor: '#E5E0D8', borderColor: '#D6D3D1' }}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium" style={{ color: '#44403C' }}>Urgency</span>
+                  <Zap className="w-5 h-5" style={{ color: '#EA580C' }} />
+                </div>
+                <div className="text-4xl font-bold capitalize" style={{ color: '#2D2D2D' }}>
+                  {analysis.overallMetrics.urgencyLevel}
+                </div>
+                <div className="text-xs mt-1 capitalize" style={{ color: '#A8A29E' }}>
+                  {analysis.overallMetrics.emotionalTone}
+                </div>
+              </div>
+            </div>
+
+            {/* Tabs */}
+            <div className="rounded-2xl overflow-hidden border-2" style={{ backgroundColor: '#E5E0D8', borderColor: '#D6D3D1' }}>
+              <div className="flex border-b-2" style={{ borderColor: '#D6D3D1' }}>
+                {['heatmap', 'recommendations', 'optimized', 'insights'].map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className="flex-1 px-4 py-4 font-semibold capitalize transition-colors text-[15px]"
+                    style={{
+                      backgroundColor: activeTab === tab ? '#F9F7F1' : 'transparent',
+                      color: activeTab === tab ? '#EA580C' : '#44403C',
+                      borderBottom: activeTab === tab ? '2px solid #EA580C' : 'none'
+                    }}
+                  >
+                    {tab}
+                  </button>
+                ))}
+              </div>
+
+              <div className="p-6" style={{ backgroundColor: '#F9F7F1' }}>
+                {/* Heatmap Tab */}
+                {activeTab === 'heatmap' && (
+                  <div>
+                    <div className="mb-6">
+                      <h3 className="text-lg font-semibold mb-4" style={{ color: '#2D2D2D' }}>Word-by-Word Analysis</h3>
+                      <div className="flex flex-wrap gap-2">
+                        {analysis.wordAnalysis.map((item, idx) => (
+                          <div
+                            key={idx}
+                            className={`px-3 py-2 rounded-full border-2 transition-all hover:scale-110 cursor-pointer relative group ${getSentimentBg(item.sentiment)}`}
+                            style={{ backgroundColor: item.sentiment > -0.2 ? 'transparent' : undefined }}
+                          >
+                            <span className="font-medium text-[15px]" style={{ color: getSentimentColor(item.sentiment) }}>
+                              {item.word}
+                            </span>
+                            {(item.suggestion || item.reasoning) && (
+                              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 text-xs rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity w-64 pointer-events-none z-10" style={{ backgroundColor: '#1C1917', color: '#E7E5E4' }}>
+                                {item.suggestion && (
+                                  <div className="font-semibold mb-1">{item.suggestion}</div>
+                                )}
+                                {item.reasoning && (
+                                  <div style={{ color: '#A8A29E' }}>{item.reasoning}</div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="rounded-2xl p-4" style={{ backgroundColor: '#E5E0D8' }}>
+                        <h4 className="font-semibold mb-3 text-sm" style={{ color: '#2D2D2D' }}>Legend</h4>
+                        <div className="space-y-2 text-[15px]">
+                          <div className="flex items-center gap-2">
+                            <div className="w-4 h-4 rounded-full bg-green-50 border-2 border-green-300"></div>
+                            <span style={{ color: '#44403C' }}>Power words</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="w-4 h-4 rounded-full bg-orange-50 border-2 border-orange-300"></div>
+                            <span style={{ color: '#44403C' }}>Positive</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="w-4 h-4 rounded-full bg-red-50 border-2 border-red-300"></div>
+                            <span style={{ color: '#44403C' }}>Weak</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="rounded-2xl p-4" style={{ backgroundColor: '#FED7AA' }}>
+                        <h4 className="font-semibold mb-3 text-sm" style={{ color: '#7C2D12' }}>AI Insights</h4>
+                        <ul className="space-y-2 text-[15px]" style={{ color: '#9A3412' }}>
+                          <li>• Confidence: {analysis.overallMetrics.confidenceLevel}</li>
+                          <li>• Tone: {analysis.overallMetrics.emotionalTone}</li>
+                          <li>• Urgency: {analysis.overallMetrics.urgencyLevel}</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Autres tabs (recommendations, optimized, insights) - Code identique à avant */}
+                {activeTab === 'recommendations' && (
+                  <div className="space-y-4">
+                    {analysis.recommendations.map((rec, idx) => (
+                      <div
+                        key={idx}
+                        className={`border-l-4 p-4 rounded-2xl rounded-bl-none ${
+                          rec.type === 'critical' ? 'border-red-500 bg-red-50' : rec.type === 'high' ? 'bg-orange-50' : 'bg-yellow-50'
+                        }`}
+                        style={{ borderLeftColor: rec.type === 'high' ? '#EA580C' : undefined }}
+                      >
+                        <div className="flex items-start justify-between mb-2">
+                          <h4 className="font-semibold text-[15px]" style={{ color: '#2D2D2D' }}>{rec.title}</h4>
+                          <span className="px-3 py-1 rounded-full text-sm font-bold" style={{ backgroundColor: '#EA580C', color: '#FFFFFF' }}>
+                            {rec.impact}
+                          </span>
+                        </div>
+                        <p className="text-[15px] mb-3 leading-relaxed" style={{ color: '#44403C' }}>{rec.detail}</p>
+                        <div className="grid grid-cols-2 gap-4 p-4 rounded-2xl border-2" style={{ backgroundColor: '#F9F7F1', borderColor: '#D6D3D1' }}>
+                          <div>
+                            <div className="text-xs text-red-600 font-semibold mb-1">BEFORE</div>
+                            <div className="text-[15px] line-through" style={{ color: '#44403C' }}>{rec.before}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-green-600 font-semibold mb-1">AFTER</div>
+                            <div className="text-[15px] font-medium" style={{ color: '#2D2D2D' }}>{rec.after}</div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {activeTab === 'optimized' && (
+                  <div className="space-y-4">
+                    {analysis.optimizedVersions.map((version, idx) => (
+                      <div key={idx} className="border-2 rounded-2xl p-5 transition-colors" style={{ borderColor: '#D6D3D1' }}
+                        onMouseEnter={(e) => e.currentTarget.style.borderColor = '#EA580C'}
+                        onMouseLeave={(e) => e.currentTarget.style.borderColor = '#D6D3D1'}
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div>
+                            <h4 className="font-bold text-lg" style={{ color: '#2D2D2D' }}>{version.title}</h4>
+                            <div className="flex gap-2 mt-2 flex-wrap">
+                              {version.changes.map((change, i) => (
+                                <span key={i} className="text-xs px-3 py-1 rounded-full border" style={{ backgroundColor: '#FED7AA', color: '#7C2D12', borderColor: '#FDBA74' }}>
+                                  {change}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-3xl font-bold" style={{ color: '#EA580C' }}>{version.score}</div>
+                            <div className="text-xs" style={{ color: '#A8A29E' }}>Score</div>
+                          </div>
+                        </div>
+                        <div className="rounded-2xl p-4 mb-3" style={{ backgroundColor: '#E5E0D8' }}>
+                          <p className="font-medium text-[15px] leading-relaxed" style={{ color: '#2D2D2D' }}>{version.text}</p>
+                        </div>
+                        <button
+                          onClick={() => copyToClipboard(version.text)}
+                          className="flex items-center gap-2 text-[15px] font-semibold"
+                          style={{ color: '#EA580C' }}
+                        >
+                          <Copy className="w-4 h-4" />
+                          Copy to clipboard
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {activeTab === 'insights' && (
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-lg font-semibold mb-3" style={{ color: '#2D2D2D' }}>Common Patterns in High-Converting Copy</h3>
+                      <ul className="space-y-3">
+                        {analysis.competitorInsights.commonPatterns.map((pattern, idx) => (
+                          <li key={idx} className="flex items-start gap-3 text-[15px] leading-relaxed" style={{ color: '#44403C' }}>
+                            <span className="mt-1 font-bold" style={{ color: '#EA580C' }}>•</span>
+                            <span>{pattern}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold mb-3" style={{ color: '#2D2D2D' }}>Differentiation Opportunities</h3>
+                      <ul className="space-y-3">
+                        {analysis.competitorInsights.differentiationOpportunities.map((opp, idx) => (
+                          <li key={idx} className="flex items-start gap-3 text-[15px] leading-relaxed" style={{ color: '#44403C' }}>
+                            <span className="text-green-600 mt-1 font-bold">✓</span>
+                            <span>{opp}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default SentimentHeatmapPro;
