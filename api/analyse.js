@@ -1,23 +1,17 @@
-// api/analyze.js - Vercel Serverless Function
-// Ce fichier sera placé dans le dossier /api de ton projet
-
-const rateLimit = new Map(); // Cache temporaire pour rate limiting
-const analysisCache = new Map(); // Cache des analyses
+const rateLimit = new Map();
+const analysisCache = new Map();
 
 export default async function handler(req, res) {
-  // 1. CORS - Autoriser les requêtes depuis ton site
   res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Allow-Origin', '*'); // En prod: remplace par ton domaine
+  res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   
-  // Gérer les requêtes OPTIONS (preflight)
   if (req.method === 'OPTIONS') {
     res.status(200).end();
     return;
   }
 
-  // 2. Accepter uniquement POST
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -25,7 +19,6 @@ export default async function handler(req, res) {
   try {
     const { text } = req.body;
 
-    // 3. Validation
     if (!text || text.trim().length === 0) {
       return res.status(400).json({ error: 'Text is required' });
     }
@@ -34,7 +27,6 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Text too long (max 5000 chars)' });
     }
 
-    // 4. RATE LIMITING - Max 10 requêtes/heure par IP
     const clientIP = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
     const now = Date.now();
     const hourAgo = now - (60 * 60 * 1000);
@@ -55,21 +47,19 @@ export default async function handler(req, res) {
     userRequests.push(now);
     rateLimit.set(clientIP, userRequests);
 
-    // 5. CACHE - Éviter de rappeler l'API pour le même texte
     const cacheKey = text.trim().toLowerCase();
     if (analysisCache.has(cacheKey)) {
-      console.log('✅ Cache hit - No API call needed');
+      console.log('Cache hit');
       return res.status(200).json(analysisCache.get(cacheKey));
     }
 
-    // 6. APPEL À L'API CLAUDE (sécurisé côté serveur)
-    const apiKey = process.env.ANTHROPIC_API_KEY; // Variable d'environnement
+    const apiKey = process.env.ANTHROPIC_API_KEY;
     
     if (!apiKey) {
       return res.status(500).json({ error: 'API key not configured' });
     }
 
-    console.log('📡 Calling Claude API...');
+    console.log('Calling Claude API...');
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -93,7 +83,7 @@ Provide a detailed JSON analysis with this EXACT structure (respond ONLY with va
   "wordAnalysis": [
     {
       "word": "exact word from text",
-      "sentiment": number between -1 and 1 (negative = hurts conversion, positive = helps),
+      "sentiment": number between -1 and 1,
       "issue": "weak_conviction" | "passive" | "friction" | "hedge" | null,
       "suggestion": "specific actionable fix" | null,
       "reasoning": "why this word impacts conversion"
@@ -147,19 +137,16 @@ Focus on real conversion psychology: power words vs weak words, urgency creation
     const data = await response.json();
     const content = data.content[0].text;
     
-    // 7. Parser le JSON
     let jsonStr = content.trim();
     jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?/g, '');
     
     const parsed = JSON.parse(jsonStr);
 
-    // 8. Stocker en cache (1 heure)
     analysisCache.set(cacheKey, parsed);
     setTimeout(() => analysisCache.delete(cacheKey), 60 * 60 * 1000);
 
-    console.log('✅ Analysis completed successfully');
+    console.log('Analysis completed');
 
-    // 9. Retourner le résultat
     return res.status(200).json(parsed);
 
   } catch (error) {
@@ -170,19 +157,3 @@ Focus on real conversion psychology: power words vs weak words, urgency creation
     });
   }
 }
-
-// Nettoyage automatique du cache toutes les heures
-setInterval(() => {
-  const now = Date.now();
-  const hourAgo = now - (60 * 60 * 1000);
-  
-  // Nettoyer rate limit
-  for (const [ip, timestamps] of rateLimit.entries()) {
-    const validTimestamps = timestamps.filter(t => t > hourAgo);
-    if (validTimestamps.length === 0) {
-      rateLimit.delete(ip);
-    } else {
-      rateLimit.set(ip, validTimestamps);
-    }
-  }
-}, 60 * 60 * 1000); // Toutes les heures
